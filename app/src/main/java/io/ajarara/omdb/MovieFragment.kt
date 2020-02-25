@@ -50,16 +50,17 @@ class MovieFragment : Fragment() {
             getOrCreateWorker().posterRepository
         )
         listing.adapter = adapter
-        listing.layoutManager = LinearLayoutManager(activity)
+        val layoutManager = LinearLayoutManager(activity)
+        listing.layoutManager = layoutManager
         listing.addOnScrollListener(object : RecyclerView.OnScrollListener() {
-            private var pos = 0
-
             override fun onScrolled(recyclerView: RecyclerView, dx: Int, dy: Int) {
-                chain?.let {
-                    // this yanks _way_ too often
-                    if (pos + dy > movies.size - 20) {
-                        pos += dy
-                        it.yank()
+                if (dy > 0) {
+                    chain?.let {
+                        val greatestVisiblePosition =
+                            layoutManager.childCount + layoutManager.findFirstVisibleItemPosition()
+                        if (greatestVisiblePosition + 20 > movies.size / 3) {
+                            it.yank()
+                        }
                     }
                 }
             }
@@ -70,7 +71,16 @@ class MovieFragment : Fragment() {
                 EditorInfo.IME_ACTION_DONE -> {
                     val subscriber = object : DisposableSubscriber<SearchResponse>() {
 
-                        override fun onComplete() {}
+                        override fun onStart() {
+                            // blegh: need to request enough to allow for scrolling so onScrolled is called
+                            // and childCount is 0 when we start
+                            request(5L)
+                        }
+
+                        override fun onComplete() {
+                            chain!!.dispose
+                            chain = null
+                        }
 
                         override fun onNext(searchResponse: SearchResponse) {
                             when (searchResponse) {
@@ -146,6 +156,7 @@ private class MovieAdapter(
         val view = LayoutInflater.from(parent.context)
             .inflate(R.layout.poster, parent, false)
 
+
         return PosterViewHolder(view)
     }
 
@@ -153,7 +164,6 @@ private class MovieAdapter(
 
     override fun onBindViewHolder(holder: PosterViewHolder, rowPos: Int) {
         val row = movies.subList(3 * rowPos, min((3 * rowPos) + 3, movies.size))
-
         holder.bind(
             Posters(
                 first = posterOrNull(row, 0),
@@ -183,6 +193,7 @@ private class PosterViewHolder(view: View) : RecyclerView.ViewHolder(view) {
     private val imageUpdates = CompositeDisposable()
 
     fun bind(posters: Posters) {
+
         imageUpdates.clear()
         posters.first?.let { bindPoster(posterOne, it) }
         posters.second?.let { bindPoster(posterTwo, it) }

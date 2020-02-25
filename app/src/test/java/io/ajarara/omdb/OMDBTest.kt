@@ -1,9 +1,10 @@
 package io.ajarara.omdb
 
+import io.ajarara.BuildConfig
 import io.reactivex.Emitter
 import io.reactivex.Flowable
-import io.reactivex.functions.BiConsumer
 import io.reactivex.functions.BiFunction
+import io.reactivex.subscribers.DisposableSubscriber
 import org.junit.jupiter.api.Test
 import java.util.concurrent.Callable
 
@@ -29,16 +30,32 @@ internal class OMDBTest {
 
     @Test
     fun `paging implementation works`() {
-        val resp = OMDB.Impl.pagingTitleSearch("Example")
+        val resp = OMDB.Impl.pagingTitleSearch("Man")
 
-        resp.blockingForEach { resp ->
-            when(resp) {
-                is SearchResponse.Failure -> error(resp.Error)
-                is SearchResponse.RawListing -> resp.Search.forEach {
-                    println("${it.Title}, ${it.Poster}")
-                }
+/*
+        resp.subscribeWith(object : DisposableSubscriber<SearchResponse>() {
+
+            override fun onStart() {
+                request(1)
             }
-        }
+
+            override fun onComplete() {
+
+            }
+
+            override fun onNext(resp: SearchResponse) {
+                when (resp) {
+                    is SearchResponse.Failure -> error(resp.Error)
+                    is SearchResponse.RawListing -> resp.Search.forEach {
+                        println("${it.Title}, ${it.Poster}")
+                    }
+                }
+
+            }
+
+            override fun onError(t: Throwable) = throw t
+        })
+*/
     }
 
     @Test
