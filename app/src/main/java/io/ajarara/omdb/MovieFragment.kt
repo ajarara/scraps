@@ -178,6 +178,8 @@ private class MovieAdapter(
         )
     }
 
+    override fun onViewDetachedFromWindow(holder: PosterViewHolder) = holder.clear()
+
     private fun posterOrNull(row: List<Movie>, idx: Int): Single<ByteArray>? {
         // either we're on the last row and we're not fully populated
         // or the movie at this position doesn't have a poster (it happens)
@@ -198,11 +200,16 @@ private class PosterViewHolder(view: View) : RecyclerView.ViewHolder(view) {
     private val imageUpdates = CompositeDisposable()
 
     fun bind(posters: Posters) {
-
         imageUpdates.clear()
         posters.first?.let { bindPoster(posterOne, it) }
         posters.second?.let { bindPoster(posterTwo, it) }
         posters.third?.let { bindPoster(posterThree, it) }
+    }
+
+    fun clear() {
+        posterOne.setImageBitmap(null)
+        posterTwo.setImageBitmap(null)
+        posterThree.setImageBitmap(null)
     }
 
     private fun bindPoster(view: ImageView, bitmapProvider: Single<ByteArray>) {
