@@ -15,13 +15,13 @@ import android.widget.TextView
 import androidx.fragment.app.Fragment
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
+import io.ajarara.BuildConfig
 import io.ajarara.R
 import io.reactivex.Single
 import io.reactivex.SingleObserver
 import io.reactivex.android.schedulers.AndroidSchedulers
 import io.reactivex.disposables.CompositeDisposable
 import io.reactivex.disposables.Disposable
-import io.reactivex.subscribers.DisposableSubscriber
 import kotlin.math.min
 
 class MovieFragment : Fragment() {
@@ -30,7 +30,7 @@ class MovieFragment : Fragment() {
     private lateinit var input: TextView
     private lateinit var listing: RecyclerView
 
-    private var chain: Chain? = null
+    private var pendingSearch: OngoingSearch? = null
 
     override fun onCreateView(
         inflater: LayoutInflater,
@@ -55,68 +55,43 @@ class MovieFragment : Fragment() {
         val layoutManager = LinearLayoutManager(activity)
         listing.layoutManager = layoutManager
         listing.addOnScrollListener(object : RecyclerView.OnScrollListener() {
-            override fun onScrolled(recyclerView: RecyclerView, dx: Int, dy: Int) {
-                if (dy > 0) {
-                    chain?.let {
-                        val greatestVisiblePosition =
-                            layoutManager.childCount + layoutManager.findFirstVisibleItemPosition()
-                        if (greatestVisiblePosition + 20 > movies.size / 3) {
-                            it.yank()
-                        }
+            private var isLoading = false
+
+            override fun onScrollStateChanged(recyclerView: RecyclerView, newState: Int) {
+                val search = pendingSearch ?: return
+
+                val shouldLoad = !isLoading
+                        // && newState == RecyclerView.SCROLL_STATE_IDLE
+                        // && layoutManager.findLastVisibleItemPosition() > movies.size -
+                if (shouldLoad) {
+                    isLoading = true
+                    loadPage(
+                        movies,
+                        search,
+                        adapter
+                    ) { nextSearch ->
+                        isLoading = false
+                        pendingSearch = nextSearch
                     }
                 }
             }
+
         })
 
         input.setOnEditorActionListener { v, actionId, _ ->
             when (actionId) {
                 EditorInfo.IME_ACTION_DONE -> {
-                    val subscriber = object : DisposableSubscriber<SearchResponse>() {
-
-                        override fun onStart() {
-                            // blegh: need to request enough to allow for scrolling so onScrolled is called
-                            // and childCount is 0 when we start
-                            request(5L)
-                        }
-
-                        override fun onComplete() {
-                            chain!!.dispose
-                            chain = null
-                        }
-
-                        override fun onNext(searchResponse: SearchResponse) {
-                            when (searchResponse) {
-                                is SearchResponse.Failure -> Log.e(
-                                    "OMDB_FAILURE",
-                                    "Error when pulling ${searchResponse.Error}"
-                                )
-                                is SearchResponse.RawListing -> {
-                                    val beforeAdd = movies.size
-                                    movies.addAll(Movie.from(searchResponse))
-                                    adapter.notifyItemRangeInserted(beforeAdd, movies.size - beforeAdd)
-                                }
-                            }
-                        }
-
-                        override fun onError(t: Throwable): Nothing = throw t
-
-                        fun yank() {
-                            request(1)
-                        }
-                    }
-                    val oldSize = movies.size
                     movies.clear()
-                    chain?.let { it.dispose() }
 
-                    adapter.notifyItemRangeRemoved(0, oldSize)
-                    OMDB.Impl.pagingTitleSearch(v.text.toString())
-                        .observeOn(AndroidSchedulers.mainThread())
-                        .subscribe(subscriber)
-
-                    chain = Chain(
-                        dispose = { subscriber.dispose() },
-                        yank = { subscriber.yank() }
+                    val newQuery = v.text.toString()
+                    adapter.notifyDataSetChanged()
+                    loadPage(
+                        movies,
+                        OngoingSearch(newQuery, 1),
+                        adapter,
+                        ::pendingSearch::set
                     )
+
                     with(input) {
                         val imm = context.getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
                         imm.hideSoftInputFromWindow(windowToken, 0)
@@ -140,16 +115,46 @@ class MovieFragment : Fragment() {
         }
     }
 
+
     companion object {
         private const val omdbTag = "OMDBWorkerFragment.TAG"
 
+
         fun newInstance() = MovieFragment()
+
+        private fun loadPage(
+            movies: MutableList<Movie>,
+            ongoingSearch: OngoingSearch,
+            adapter: MovieAdapter,
+            nextState: (OngoingSearch?) -> Unit
+        ) {
+            OMDB.Impl.titleSearch(BuildConfig.API_KEY, ongoingSearch.term, ongoingSearch.page)
+                .observeOn(AndroidSchedulers.mainThread())
+                .subscribe { searchResponse ->
+                    when(searchResponse) {
+                        is SearchResponse.RawListing -> {
+                            val amountBeforeAdd = movies.size
+                            val added = Movie.from(searchResponse)
+                            movies.addAll(added)
+                            adapter.notifyItemRangeInserted(amountBeforeAdd, added.size)
+                            nextState(ongoingSearch.next())
+                        }
+                        is SearchResponse.Failure -> {
+                            Log.w("OMDB_ERROR", searchResponse.Error)
+                            nextState(null)
+                        }
+                    }
+                }
+        }
+
     }
 
-    private class Chain(
-        val dispose: () -> Unit,
-        val yank: () -> Unit
-    )
+    private data class OngoingSearch(
+        val term: String,
+        val page: Int
+    ) {
+        fun next() = copy(page = page + 1)
+    }
 }
 
 private class MovieAdapter(
@@ -217,14 +222,18 @@ private class PosterViewHolder(view: View) : RecyclerView.ViewHolder(view) {
             .observeOn(AndroidSchedulers.mainThread())
             .subscribe(object : SingleObserver<Bitmap> {
                 override fun onSuccess(value: Bitmap?) {
-                    value?.let { view.setImageBitmap(it) }
+                    if (value == null) {
+                        Log.w("POSTER_FETCH", "Bitmap was null")
+                    } else {
+                        value.let { view.setImageBitmap(it) }
+                    }
                 }
 
-                override fun onError(e: Throwable?) {
+                override fun onError(e: Throwable) {
                     Log.e("POSTER_FETCH", "Could not fetch poster: $e")
                 }
 
-                override fun onSubscribe(d: Disposable?) {
+                override fun onSubscribe(d: Disposable) {
                     imageUpdates.add(d)
                 }
             })
