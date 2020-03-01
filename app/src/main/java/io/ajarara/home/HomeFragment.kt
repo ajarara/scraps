@@ -36,5 +36,7 @@ class HomeFragment : Fragment() {
 
     companion object {
         fun newInstance() = HomeFragment()
+
+        const val tag = "HomeFragment.TAG"
     }
 }

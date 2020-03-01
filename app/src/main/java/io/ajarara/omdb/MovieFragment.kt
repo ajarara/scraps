@@ -21,6 +21,7 @@ import io.reactivex.SingleObserver
 import io.reactivex.android.schedulers.AndroidSchedulers
 import io.reactivex.disposables.CompositeDisposable
 import io.reactivex.disposables.Disposable
+import io.reactivex.schedulers.Schedulers
 import io.reactivex.subscribers.DisposableSubscriber
 import kotlin.math.min
 
@@ -49,7 +50,7 @@ class MovieFragment : Fragment() {
 
         adapter = MovieAdapter(
             movies,
-            getOrCreateWorker().posterRepository
+            worker().posterRepository
         )
         listing.adapter = adapter
         val layoutManager = LinearLayoutManager(activity)
@@ -128,7 +129,7 @@ class MovieFragment : Fragment() {
         }
     }
 
-    private fun getOrCreateWorker(): MovieWorkerFragment {
+    private fun worker(): MovieWorkerFragment {
         return when (val found = childFragmentManager.findFragmentByTag(omdbTag)) {
             null -> MovieWorkerFragment().also {
                 childFragmentManager.beginTransaction()
@@ -141,6 +142,7 @@ class MovieFragment : Fragment() {
     }
 
     companion object {
+        const val tag = "MovieFragment.TAG"
         private const val omdbTag = "OMDBWorkerFragment.TAG"
 
         fun newInstance() = MovieFragment()
@@ -201,9 +203,11 @@ private class PosterViewHolder(view: View) : RecyclerView.ViewHolder(view) {
 
     fun bind(posters: Posters) {
         imageUpdates.clear()
+        clear()
         posters.first?.let { bindPoster(posterOne, it) }
         posters.second?.let { bindPoster(posterTwo, it) }
         posters.third?.let { bindPoster(posterThree, it) }
+        Schedulers.trampoline()
     }
 
     fun clear() {
