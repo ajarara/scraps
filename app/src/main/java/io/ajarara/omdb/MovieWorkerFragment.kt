@@ -61,7 +61,7 @@ class SearchRepository(
             .flatMapPublisher { initialResponse ->
                 Flowable.generate(Callable { Search(initialResponse, 1) }, pagerOf(search))
                     .map { it.response }
-                    .delay(100, TimeUnit.MILLISECONDS)
+                    // .delay(100, TimeUnit.MILLISECONDS)
                     .startWith(initialResponse)
             }
             .subscribeWith(object : DisposableSubscriber<SearchResponse>() {
@@ -96,8 +96,6 @@ class SearchRepository(
     }
 
     val insertions: Observable<Insertion> = insertionRelay
-        // this is a little unexpected.
-        .doOnSubscribe { disposables.add(it) }
 
     fun size() = movies.size / 3
 
@@ -146,7 +144,7 @@ class SearchRepository(
         }
     }
 
-    data class Insertion(val positionStart: Int, val itemCount: Int) {
+    class Insertion(val positionStart: Int, val itemCount: Int) {
         init {
             require(itemCount >= 0)
             require(positionStart >= 0)

@@ -65,7 +65,6 @@ class MovieFragment : Fragment() {
                     listing.layoutManager = LinearLayoutManager(context)
                     listing.adapter = adapter
 
-
                     with(input) {
                         val imm = context.getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
                         imm.hideSoftInputFromWindow(windowToken, 0)
@@ -121,8 +120,6 @@ private class MovieAdapter(
             )
         )
     }
-
-    // override fun onViewDetachedFromWindow(holder: PosterViewHolder) = holder.clear()
 
     private fun posterOrNull(row: List<Movie>, idx: Int): Single<ByteArray>? {
         // either we're on the last row and we're not fully populated
