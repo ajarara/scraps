@@ -8,9 +8,11 @@ import io.reactivex.Emitter
 import io.reactivex.Flowable
 import io.reactivex.Observable
 import io.reactivex.Single
+import io.reactivex.disposables.CompositeDisposable
 import io.reactivex.disposables.Disposable
 import io.reactivex.functions.BiFunction
 import io.reactivex.schedulers.Schedulers
+import io.reactivex.subjects.BehaviorSubject
 import io.reactivex.subjects.PublishSubject
 import io.reactivex.subscribers.DisposableSubscriber
 import okhttp3.HttpUrl
@@ -25,7 +27,8 @@ import kotlin.math.min
 
 class MovieWorkerFragment : Fragment() {
     val posterRepository = PosterRepository()
-    private var searchRepository: SearchRepository? = null
+    var searchRepository: SearchRepository? = null
+        private set
 
     init {
         retainInstance = true
@@ -51,8 +54,9 @@ class SearchRepository(
     private val insertionRelay = PublishSubject.create<Insertion>()
     private val movies = mutableListOf<Movie>()
     private lateinit var yank: () -> Unit
+    private val disposables = CompositeDisposable()
 
-    private val disposable: Disposable =
+    init {
         omdb.titleSearch(BuildConfig.API_KEY, search, 1)
             .flatMapPublisher { initialResponse ->
                 Flowable.generate(Callable { Search(initialResponse, 1) }, pagerOf(search))
@@ -88,12 +92,16 @@ class SearchRepository(
 
                 override fun onError(t: Throwable) = throw t
             })
+            .let { disposables.add(it) }
+    }
 
     val insertions: Observable<Insertion> = insertionRelay
+        // this is a little unexpected.
+        .doOnSubscribe { disposables.add(it) }
 
     fun size() = movies.size / 3
 
-    fun dispose() = disposable.dispose()
+    fun dispose() = disposables.dispose()
 
     fun getRow(rowPosition: Int): List<Movie> {
         require(rowPosition >= 0 && rowPosition < size()) {

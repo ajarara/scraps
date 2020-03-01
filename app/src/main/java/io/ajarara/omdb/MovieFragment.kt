@@ -31,8 +31,6 @@ class MovieFragment : Fragment() {
     private lateinit var input: TextView
     private lateinit var listing: RecyclerView
 
-    private var chain: Chain? = null
-
     override fun onCreateView(
         inflater: LayoutInflater,
         container: ViewGroup?,
@@ -46,78 +44,28 @@ class MovieFragment : Fragment() {
         input = view.findViewById(R.id.input)
         listing = view.findViewById(R.id.listing)
 
-        val movies = mutableListOf<Movie>()
-
-        adapter = MovieAdapter(
-            movies,
-            worker().posterRepository
-        )
-        listing.adapter = adapter
-        val layoutManager = LinearLayoutManager(activity)
-        listing.layoutManager = layoutManager
-        listing.addOnScrollListener(object : RecyclerView.OnScrollListener() {
-            override fun onScrolled(recyclerView: RecyclerView, dx: Int, dy: Int) {
-                if (dy > 0) {
-                    chain?.let {
-                        val greatestVisiblePosition =
-                            layoutManager.childCount + layoutManager.findFirstVisibleItemPosition()
-                        if (greatestVisiblePosition + 20 > movies.size / 3) {
-                            it.yank()
-                        }
-                    }
-                }
-            }
-        })
-
         input.setOnEditorActionListener { v, actionId, _ ->
             when (actionId) {
                 EditorInfo.IME_ACTION_DONE -> {
-                    val subscriber = object : DisposableSubscriber<SearchResponse>() {
 
-                        override fun onStart() {
-                            // blegh: need to request enough to allow for scrolling so onScrolled is called
-                            // and childCount is 0 when we start
-                            request(5L)
-                        }
-
-                        override fun onComplete() {
-                            chain!!.dispose
-                            chain = null
-                        }
-
-                        override fun onNext(searchResponse: SearchResponse) {
-                            when (searchResponse) {
-                                is SearchResponse.Failure -> Log.e(
-                                    "OMDB_FAILURE",
-                                    "Error when pulling ${searchResponse.Error}"
-                                )
-                                is SearchResponse.RawListing -> {
-                                    val beforeAdd = movies.size
-                                    movies.addAll(Movie.from(searchResponse))
-                                    adapter.notifyItemRangeInserted(beforeAdd, movies.size - beforeAdd)
-                                }
-                            }
-                        }
-
-                        override fun onError(t: Throwable): Nothing = throw t
-
-                        fun yank() {
-                            request(1)
-                        }
-                    }
-                    val oldSize = movies.size
-                    movies.clear()
-                    chain?.let { it.dispose() }
-
-                    adapter.notifyItemRangeRemoved(0, oldSize)
-                    OMDB.Impl.pagingTitleSearch(v.text.toString())
-                        .observeOn(AndroidSchedulers.mainThread())
-                        .subscribe(subscriber)
-
-                    chain = Chain(
-                        dispose = { subscriber.dispose() },
-                        yank = { subscriber.yank() }
+                    val worker = worker()
+                    val searchRepository = worker.search(v.text.toString())
+                    adapter = MovieAdapter(
+                        searchRepository,
+                        worker.posterRepository
                     )
+                    searchRepository.insertions
+                        .observeOn(AndroidSchedulers.mainThread())
+                        .subscribe {
+                            adapter.notifyItemRangeInserted(
+                                it.positionStart,
+                                it.itemCount
+                            )
+                        }
+                    listing.layoutManager = LinearLayoutManager(context)
+                    listing.adapter = adapter
+
+
                     with(input) {
                         val imm = context.getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
                         imm.hideSoftInputFromWindow(windowToken, 0)
@@ -147,15 +95,10 @@ class MovieFragment : Fragment() {
 
         fun newInstance() = MovieFragment()
     }
-
-    private class Chain(
-        val dispose: () -> Unit,
-        val yank: () -> Unit
-    )
 }
 
 private class MovieAdapter(
-    private val movies: List<Movie>,
+    private val movies: SearchRepository,
     private val posterRepository: PosterRepository
 ) : RecyclerView.Adapter<PosterViewHolder>() {
 
@@ -163,14 +106,13 @@ private class MovieAdapter(
         val view = LayoutInflater.from(parent.context)
             .inflate(R.layout.poster, parent, false)
 
-
         return PosterViewHolder(view)
     }
 
-    override fun getItemCount(): Int = movies.size / 3
+    override fun getItemCount(): Int = movies.size()
 
     override fun onBindViewHolder(holder: PosterViewHolder, rowPos: Int) {
-        val row = movies.subList(3 * rowPos, min((3 * rowPos) + 3, movies.size))
+        val row = movies.getRow(rowPos)
         holder.bind(
             Posters(
                 first = posterOrNull(row, 0),
@@ -180,7 +122,7 @@ private class MovieAdapter(
         )
     }
 
-    override fun onViewDetachedFromWindow(holder: PosterViewHolder) = holder.clear()
+    // override fun onViewDetachedFromWindow(holder: PosterViewHolder) = holder.clear()
 
     private fun posterOrNull(row: List<Movie>, idx: Int): Single<ByteArray>? {
         // either we're on the last row and we're not fully populated
