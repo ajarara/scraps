@@ -64,9 +64,9 @@ class MovieFragment : Fragment() {
     }
 
     private fun worker(): MovieWorkerFragment {
-        return when (val found = childFragmentManager.findFragmentByTag(omdbTag)) {
+        return when (val found = fragmentManager!!.findFragmentByTag(omdbTag)) {
             null -> MovieWorkerFragment().also {
-                childFragmentManager.beginTransaction()
+                fragmentManager!!.beginTransaction()
                     .add(it, omdbTag)
                     .commit()
             }
