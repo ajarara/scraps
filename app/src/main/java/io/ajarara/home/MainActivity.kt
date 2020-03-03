@@ -18,25 +18,20 @@ class MainActivity : AppCompatActivity(), Navigator {
 
     override fun navigate(screen: Screen) {
         val toShow = when(screen) {
-            is Screen.Home -> FragmentWithTag(
-                HomeFragment.newInstance(), HomeFragment.tag
-            )
-            is Screen.Movies -> FragmentWithTag(
-                MovieFragment.newInstance(),
-                MovieFragment.tag
-            )
+            is Screen.Home -> HomeFragment.newInstance()
+            is Screen.Movies -> MovieFragment.newInstance()
         }
 
         supportFragmentManager.beginTransaction()
-            .replace(R.id.canvas, toShow.fragment, toShow.tag)
+            .replace(R.id.canvas, toShow)
             .commit()
+    }
+
+    override fun onBackPressed() {
+        navigate(Screen.Home)
     }
 }
 
-class FragmentWithTag(
-    val fragment: Fragment,
-    val tag: String
-)
 interface Navigator {
     fun navigate(screen: Screen)
 }
