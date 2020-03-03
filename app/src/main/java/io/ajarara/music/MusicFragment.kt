@@ -8,6 +8,6 @@ class MusicFragment : Fragment() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        val mp = MediaPlayer.create(context)
+        // val mp = MediaPlayer.create(context)
     }
 }

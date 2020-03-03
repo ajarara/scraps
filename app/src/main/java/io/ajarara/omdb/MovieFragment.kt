@@ -22,12 +22,9 @@ import io.reactivex.android.schedulers.AndroidSchedulers
 import io.reactivex.disposables.CompositeDisposable
 import io.reactivex.disposables.Disposable
 import io.reactivex.schedulers.Schedulers
-import io.reactivex.subscribers.DisposableSubscriber
-import kotlin.math.min
 
 class MovieFragment : Fragment() {
 
-    private lateinit var adapter: MovieAdapter
     private lateinit var input: TextView
     private lateinit var listing: RecyclerView
 
@@ -38,34 +35,24 @@ class MovieFragment : Fragment() {
     ): View? = inflater.inflate(R.layout.movies, container, false)
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
-        require(!::adapter.isInitialized)
         super.onViewCreated(view, savedInstanceState)
 
         input = view.findViewById(R.id.input)
         listing = view.findViewById(R.id.listing)
 
+        val worker = worker()
+
+        listing.layoutManager = LinearLayoutManager(context)
+        listing.adapter = MovieAdapter(
+            worker.searchRepository,
+            worker.posterRepository
+        )
+
         input.setOnEditorActionListener { v, actionId, _ ->
             when (actionId) {
                 EditorInfo.IME_ACTION_DONE -> {
-
-                    val worker = worker()
-                    val searchRepository = worker.search(v.text.toString())
-                    adapter = MovieAdapter(
-                        searchRepository,
-                        worker.posterRepository
-                    )
-                    searchRepository.insertions
-                        .observeOn(AndroidSchedulers.mainThread())
-                        .subscribe {
-                            adapter.notifyItemRangeInserted(
-                                it.positionStart,
-                                it.itemCount
-                            )
-                        }
-                    listing.layoutManager = LinearLayoutManager(context)
-                    listing.adapter = adapter
-
                     with(input) {
+                        worker.searchRepository.search(v.text.toString())
                         val imm = context.getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
                         imm.hideSoftInputFromWindow(windowToken, 0)
                     }
@@ -98,8 +85,24 @@ class MovieFragment : Fragment() {
 
 private class MovieAdapter(
     private val movies: SearchRepository,
-    private val posterRepository: PosterRepository
+    private val posters: PosterRepository
 ) : RecyclerView.Adapter<PosterViewHolder>() {
+
+    private val insertions = movies.insertions
+        .observeOn(AndroidSchedulers.mainThread())
+        .subscribe {
+            when(it) {
+                is StructureUpdate.Insertion -> {
+                    notifyItemRangeInserted(
+                        it.positionStart,
+                        it.itemCount
+                    )
+                }
+                is StructureUpdate.Clear -> {
+                    notifyItemRangeRemoved(0, it.size)
+                }
+            }
+        }
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): PosterViewHolder {
         val view = LayoutInflater.from(parent.context)
@@ -121,12 +124,17 @@ private class MovieAdapter(
         )
     }
 
+    override fun onDetachedFromRecyclerView(recyclerView: RecyclerView) {
+        insertions.dispose()
+        movies.dispose()
+    }
+
     private fun posterOrNull(row: List<Movie>, idx: Int): Single<ByteArray>? {
         // either we're on the last row and we're not fully populated
         // or the movie at this position doesn't have a poster (it happens)
         return row.getOrNull(idx)?.let { movie ->
             movie.poster?.let { validPoster ->
-                posterRepository.load(validPoster)
+                posters.load(validPoster)
             }
         }
     }

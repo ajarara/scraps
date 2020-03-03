@@ -1,6 +1,5 @@
 package io.ajarara.omdb
 
-import android.graphics.Bitmap
 import android.util.Log
 import androidx.fragment.app.Fragment
 import io.ajarara.BuildConfig
@@ -9,57 +8,49 @@ import io.reactivex.Flowable
 import io.reactivex.Observable
 import io.reactivex.Single
 import io.reactivex.disposables.CompositeDisposable
-import io.reactivex.disposables.Disposable
 import io.reactivex.functions.BiFunction
 import io.reactivex.schedulers.Schedulers
-import io.reactivex.subjects.BehaviorSubject
 import io.reactivex.subjects.PublishSubject
 import io.reactivex.subscribers.DisposableSubscriber
 import okhttp3.HttpUrl
 import okhttp3.OkHttpClient
 import okhttp3.Request
-import java.net.URI
-import java.net.URL
+import java.util.*
 import java.util.concurrent.Callable
-import java.util.concurrent.TimeUnit
-import java.util.function.BiConsumer
 import kotlin.math.min
 
 class MovieWorkerFragment : Fragment() {
     val posterRepository = PosterRepository()
-    var searchRepository: SearchRepository? = null
-        private set
+    val searchRepository: SearchRepository = SearchRepository(OMDB.Impl)
 
     init {
         retainInstance = true
     }
-
-    fun search(search: String): SearchRepository {
-        val repo = searchRepository
-        if (repo?.search == search) {
-            return repo
-        }
-        repo?.dispose()
-
-        return SearchRepository(search, OMDB.Impl).also {
-            searchRepository = it
-        }
-    }
 }
 
-class SearchRepository(
-    val search: String,
-    private val omdb: OMDB
-) {
-    private val insertionRelay = PublishSubject.create<Insertion>()
+class SearchRepository(private val omdb: OMDB) {
+
+    private val insertionRelay = PublishSubject.create<StructureUpdate>()
     private val movies = mutableListOf<Movie>()
-    private lateinit var yank: () -> Unit
     private val disposables = CompositeDisposable()
 
-    init {
-        omdb.titleSearch(BuildConfig.API_KEY, search, 1)
+    private lateinit var yank: () -> Unit
+    private var currentSearch: String? = null
+
+    val insertions: Observable<StructureUpdate> = insertionRelay
+
+    fun search(title: String) {
+        if (title.toLowerCase(Locale.getDefault()) == currentSearch) {
+            return
+        }
+        val previousMovieSize = movies.size
+        disposables.clear()
+        movies.clear()
+        insertionRelay.onNext(StructureUpdate.Clear(previousMovieSize))
+
+        omdb.titleSearch(BuildConfig.API_KEY, title, 1)
             .flatMapPublisher { initialResponse ->
-                Flowable.generate(Callable { Search(initialResponse, 1) }, pagerOf(search))
+                Flowable.generate(Callable { Search(initialResponse, 1) }, pagerOf(title))
                     .map { it.response }
                     // .delay(100, TimeUnit.MILLISECONDS)
                     .startWith(initialResponse)
@@ -84,7 +75,10 @@ class SearchRepository(
                             val beforeAdd = movies.size
                             movies.addAll(Movie.from(searchResponse))
                             insertionRelay.onNext(
-                                Insertion(beforeAdd, movies.size - beforeAdd)
+                                StructureUpdate.Insertion(
+                                    positionStart = beforeAdd,
+                                    itemCount = movies.size - beforeAdd
+                                )
                             )
                         }
                     }
@@ -94,8 +88,6 @@ class SearchRepository(
             })
             .let { disposables.add(it) }
     }
-
-    val insertions: Observable<Insertion> = insertionRelay
 
     fun size() = movies.size / 3
 
@@ -144,12 +136,15 @@ class SearchRepository(
         }
     }
 
+
     class Insertion(val positionStart: Int, val itemCount: Int) {
         init {
             require(itemCount >= 0)
             require(positionStart >= 0)
         }
     }
+
+
 
     private class Search(
         val response: SearchResponse,
@@ -179,3 +174,15 @@ class PosterRepository {
     }
 }
 
+
+
+sealed class StructureUpdate {
+    class Insertion(val positionStart: Int, val itemCount: Int) : StructureUpdate() {
+        init {
+            require(itemCount >= 0)
+            require(positionStart >= 0)
+        }
+    }
+
+    class Clear(val size: Int) : StructureUpdate()
+}
