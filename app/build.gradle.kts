@@ -25,17 +25,11 @@ android {
         versionName = "1.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
+
     buildTypes {
-        getByName("debug") {
-            isMinifyEnabled = false
-            proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"))
-        }
-        getByName("release") {
-            isMinifyEnabled = true
-            proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"))
-        }
+        // Why isn't a BuildConfig file generated?
         all {
-            buildConfigField("String", "API_KEY", "\"${file("secret.key").readText()}\"")
+            buildConfigField("String", "OMDB_KEY", "\"${file("omdb.key").readText()}\"")
         }
     }
 }

@@ -3,7 +3,6 @@ package io.ajarara.omdb
 import com.fasterxml.jackson.annotation.JsonSubTypes
 import com.fasterxml.jackson.annotation.JsonTypeInfo
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
-import io.ajarara.BuildConfig
 import io.reactivex.Emitter
 import io.reactivex.Flowable
 import io.reactivex.Single
@@ -34,8 +33,9 @@ interface OMDB {
         .build()
         .create(OMDB::class.java) {
 
+
         fun pagingTitleSearch(title: String): Flowable<SearchResponse> =
-            titleSearch(BuildConfig.API_KEY, title, 1)
+            titleSearch(OMDB_KEY, title, 1)
                 .flatMapPublisher { initialResponse ->
                     Flowable.generate(Callable { Search(initialResponse, 1) }, pagerOf(title))
                         .map { it.response }
@@ -56,7 +56,7 @@ interface OMDB {
                         search  // swallowed
                     } else {
                         val next = Search(
-                            response = titleSearch(BuildConfig.API_KEY, title, search.page + 1).blockingGet(),
+                            response = titleSearch(io.ajarara.BuildConfig.OMDB_KEY, title, search.page + 1).blockingGet(),
                             page = search.page + 1
                         )
                         emitter.onNext(next)
