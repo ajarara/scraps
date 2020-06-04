@@ -8,3 +8,4 @@
 .externalNativeBuild
 .cxx
 secret.key
+Secret.kt

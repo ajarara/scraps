@@ -35,7 +35,7 @@ interface OMDB {
 
 
         fun pagingTitleSearch(title: String): Flowable<SearchResponse> =
-            titleSearch(OMDB_KEY, title, 1)
+            titleSearch(Secret.OMDB_KEY, title, 1)
                 .flatMapPublisher { initialResponse ->
                     Flowable.generate(Callable { Search(initialResponse, 1) }, pagerOf(title))
                         .map { it.response }
@@ -56,7 +56,7 @@ interface OMDB {
                         search  // swallowed
                     } else {
                         val next = Search(
-                            response = titleSearch(io.ajarara.BuildConfig.OMDB_KEY, title, search.page + 1).blockingGet(),
+                            response = titleSearch(Secret.OMDB_KEY, title, search.page + 1).blockingGet(),
                             page = search.page + 1
                         )
                         emitter.onNext(next)
