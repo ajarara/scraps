@@ -31,6 +31,7 @@ class MainActivity : FragmentActivity(), Navigator {
                     .replace(R.id.canvas, oldFragment, oldFragment.tag)
                     .commit()
             }
+
         }
     }
 }
