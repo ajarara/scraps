@@ -3,10 +3,11 @@ package io.ajarara.home
 import android.os.Bundle
 import androidx.appcompat.app.AppCompatActivity
 import androidx.fragment.app.Fragment
+import androidx.fragment.app.FragmentActivity
 import io.ajarara.R
 import io.ajarara.omdb.MovieFragment
 
-class MainActivity : AppCompatActivity(), Navigator {
+class MainActivity : FragmentActivity(), Navigator {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -17,18 +18,20 @@ class MainActivity : AppCompatActivity(), Navigator {
     }
 
     override fun navigate(screen: Screen) {
-        val toShow = when(screen) {
-            is Screen.Home -> HomeFragment.newInstance()
-            is Screen.Movies -> MovieFragment.newInstance()
+        when(val oldFragment = supportFragmentManager.findFragmentByTag(screen.tag)) {
+            null -> {
+                supportFragmentManager.beginTransaction()
+                    .replace(R.id.canvas, screen.newInstance(), screen.tag)
+                    .addToBackStack(screen.tag)
+                    .commit()
+            }
+            else -> {
+                println("Reusing fragment: ${screen.tag}")
+                supportFragmentManager.beginTransaction()
+                    .replace(R.id.canvas, oldFragment, oldFragment.tag)
+                    .commit()
+            }
         }
-
-        supportFragmentManager.beginTransaction()
-            .replace(R.id.canvas, toShow)
-            .commit()
-    }
-
-    override fun onBackPressed() {
-        navigate(Screen.Home)
     }
 }
 
@@ -36,7 +39,15 @@ interface Navigator {
     fun navigate(screen: Screen)
 }
 
-sealed class Screen {
-    object Home : Screen()
-    object Movies : Screen()
+enum class Screen {
+    Home {
+        override fun newInstance(): Fragment = HomeFragment.newInstance()
+        override val tag: String =  HomeFragment.tag
+    }, Movies {
+        override fun newInstance(): Fragment = MovieFragment.newInstance()
+        override val tag: String = MovieFragment.tag
+    };
+
+    abstract fun newInstance(): Fragment
+    abstract val tag: String
 }

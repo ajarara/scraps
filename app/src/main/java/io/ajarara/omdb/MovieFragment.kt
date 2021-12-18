@@ -64,15 +64,31 @@ class MovieFragment : Fragment() {
     }
 
     private fun worker(): MovieWorkerFragment {
-        return when (val found = fragmentManager!!.findFragmentByTag(omdbTag)) {
+        
+        return when (val found = childFragmentManager.findFragmentByTag(omdbTag)) {
             null -> MovieWorkerFragment().also {
-                fragmentManager!!.beginTransaction()
+                childFragmentManager.beginTransaction()
                     .add(it, omdbTag)
                     .commit()
             }
             is MovieWorkerFragment -> found
             else -> error("Fragment for tag $omdbTag not an OMDBWorkerFragment, ${found.javaClass}")
         }
+    }
+
+    override fun onDestroy() {
+        println("MovieFragment.onDestroy")
+        super.onDestroy()
+    }
+
+    override fun onDetach() {
+        println("MovieFragment.onDetach")
+        super.onDetach()
+    }
+
+    override fun onSaveInstanceState(outState: Bundle) {
+        println("MovieFragment.onSaveInstanceState")
+        super.onSaveInstanceState(outState)
     }
 
     companion object {

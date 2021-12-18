@@ -11,7 +11,7 @@ internal class SearchRepositoryTest {
     fun `search repository doesn't consume very large stream`() {
         val exampleSearch = "Avengers"
         val omdb = omdbOf { apiKey, search, page ->
-            require(apiKey == BuildConfig.API_KEY)
+            require(apiKey == BuildConfig.OMDB_KEY)
             require(search == exampleSearch)
             // notice we don't respect page here, we just get a very large stream
             // of the same chunk of movies over and over again, just like real life
@@ -30,10 +30,10 @@ internal class SearchRepositoryTest {
         }
 
         val repo = SearchRepository(
-            search = exampleSearch,
             omdb = omdb
-        )
-
+        ).apply {
+            search(exampleSearch)
+        }
         assert(repo.getRow(2).all {
             it.title == "Avengers"
         }) {

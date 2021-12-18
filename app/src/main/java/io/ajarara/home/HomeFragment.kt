@@ -19,6 +19,7 @@ class HomeFragment : Fragment() {
     }
 
     override fun onDetach() {
+        println("onDetach of HomeFragment")
         super.onDetach()
         navigator = null
     }

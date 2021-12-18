@@ -12,7 +12,7 @@ internal class OMDBTest {
 
     @Test
     fun `just testing`() {
-        val resp = OMDB.Impl.titleSearch(BuildConfig.API_KEY, "Bees", 1)
+        val resp = OMDB.Impl.titleSearch(BuildConfig.OMDB_KEY, "Bees", 1)
             .blockingGet() as SearchResponse.RawListing
 
 /*
@@ -24,7 +24,7 @@ internal class OMDBTest {
 
     @Test
     fun `testing error`() {
-        OMDB.Impl.titleSearch(BuildConfig.API_KEY, "Bees", 0)
+        OMDB.Impl.titleSearch(BuildConfig.OMDB_KEY, "Bees", 0)
             .blockingGet() as SearchResponse.Failure
     }
 

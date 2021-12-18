@@ -48,7 +48,7 @@ class SearchRepository(private val omdb: OMDB) {
         movies.clear()
         insertionRelay.onNext(StructureUpdate.Clear(previousMovieSize))
 
-        omdb.titleSearch(BuildConfig.API_KEY, title, 1)
+        omdb.titleSearch(BuildConfig.OMDB_KEY, title, 1)
             .flatMapPublisher { initialResponse ->
                 Flowable.generate(Callable { Search(initialResponse, 1) }, pagerOf(title))
                     .map { it.response }
@@ -123,7 +123,7 @@ class SearchRepository(private val omdb: OMDB) {
                 } else {
                     val next = Search(
                         response = omdb.titleSearch(
-                            BuildConfig.API_KEY,
+                            BuildConfig.OMDB_KEY,
                             title,
                             emitted.page + 1
                         ).blockingGet(),
